@@ -1,18 +1,43 @@
-FROM python:3.11-slim as builder
-WORKDIR /build
-COPY requirements.txt .
-RUN pip install --user --no-cache-dir -r requirements.txt
+# Use a multi-stage build to create a Flask application in Docker
 
-FROM python:3.11-slim
+# Stage 1: Builder
+FROM python:3.11-slim AS builder
+
+# Set the working directory
 WORKDIR /app
-COPY --from=builder /root/.local /root/.local
+
+# Copy the requirements file
+COPY requirements.txt .
+
+# Install dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Stage 2: Runtime
+FROM python:3.11-slim
+
+# Set the working directory
+WORKDIR /app
+
+# Copy artifacts from the builder stage
+COPY --from=builder /app /app
+
+# Copy the application files
 COPY app.py .
-COPY config/ ./config/ 2>/dev/null || true
-ENV PATH=/root/.local/bin:$PATH
-FLASK_ENV=production
-PYTHONUNBUFFERED=1
-RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
-USER appuser
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 CMD python -c 'import requests; requests.get(\'http://localhost:5000/health\') || exit 1'
+COPY config/ config/
+
+# Set environment variables for production
+ENV FLASK_ENV=production
+ENV PORT=5000
+
+# Create a non-root user
+RUN useradd -m flaskuser
+USER flaskuser
+
+# Add health check
+HEALTHCHECK CMD curl --fail http://localhost:${PORT}/health || exit 1
+
+# Expose the port
 EXPOSE 5000
-CMD gunicorn --workers=4 --worker-class=sync --bind=0.0.0.0:5000 --timeout=60 app:app
+
+# Command to run the application
+CMD ["gunicorn", "app:app", "--workers=4", "--bind=0.0.0.0:5000" ]
