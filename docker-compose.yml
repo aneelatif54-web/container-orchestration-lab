@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  web:
+    image: python:3.9
+    container_name: python_web_app
+    volumes:
+      - ./app:/app
+    working_dir: /app
+    command: python app.py
+    ports:
+      - "5000:5000"
+
+  sidecar:
+    image: my-sidecar-image
+    container_name: sidecar_container
+    depends_on:
+      - web
+
+  monitoring:
+    image: monitoring-tool-image
+    container_name: monitoring_container
+    ports:
+      - "8080:8080"
+    depends_on:
+      - web
